@@ -1,0 +1,317 @@
+import streamlit as st
+import random
+import re
+from typing import List, Dict, Tuple
+
+class AssignmentQuizGenerator:
+    def __init__(self):
+        # Common question starters for assignments
+        self.assignment_prompts = [
+            "Analyze and discuss",
+            "Compare and contrast",
+            "Evaluate the significance of",
+            "Examine the role of",
+            "Critically assess",
+            "Explore the relationship between",
+            "Discuss the implications of",
+            "Investigate how",
+            "Explain the importance of",
+            "Describe the impact of"
+        ]
+        
+        # Question words for quiz generation
+        self.quiz_starters = [
+            "What is",
+            "Which of the following",
+            "How does",
+            "Why is",
+            "When did",
+            "Where does",
+            "Who was",
+            "What are the main"
+        ]
+        
+    def extract_key_concepts(self, text: str) -> List[str]:
+        """Extract key concepts from the text using simple NLP techniques."""
+        # Clean and split text into sentences
+        sentences = re.split(r'[.!?]+', text)
+        sentences = [s.strip() for s in sentences if s.strip()]
+        
+        # Extract important words (longer than 4 characters, not common words)
+        common_words = {'this', 'that', 'with', 'have', 'will', 'from', 'they', 'been', 
+                       'were', 'said', 'each', 'which', 'their', 'time', 'about', 
+                       'would', 'there', 'could', 'other', 'after', 'first', 'well',
+                       'many', 'some', 'very', 'when', 'much', 'before', 'right',
+                       'through', 'just', 'also', 'should', 'because', 'does',
+                       'most', 'still', 'while', 'where', 'being', 'during'}
+        
+        words = re.findall(r'\b[A-Za-z]+\b', text.lower())
+        key_words = [word for word in words if len(word) > 4 and word not in common_words]
+        
+        # Get word frequency and select top concepts
+        word_freq = {}
+        for word in key_words:
+            word_freq[word] = word_freq.get(word, 0) + 1
+        
+        # Sort by frequency and return top concepts
+        sorted_words = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)
+        concepts = [word.capitalize() for word, freq in sorted_words[:8]]
+        
+        return concepts, sentences
+    
+    def generate_assignments(self, text: str, topic: str = "") -> List[str]:
+        """Generate 2 assignment questions based on the text."""
+        concepts, sentences = self.extract_key_concepts(text)
+        assignments = []
+        
+        # Use topic if provided, otherwise use main concepts
+        main_subject = topic if topic else (concepts[0] if concepts else "the given topic")
+        
+        # Generate first assignment
+        prompt1 = random.choice(self.assignment_prompts)
+        if len(concepts) >= 2:
+            assignment1 = f"{prompt1} {concepts[0].lower()} and {concepts[1].lower()} in the context of {main_subject.lower()}. Provide specific examples and support your arguments with evidence from the text. (500-750 words)"
+        else:
+            assignment1 = f"{prompt1} the key themes presented in {main_subject.lower()}. Provide specific examples and support your arguments with evidence. (500-750 words)"
+        
+        assignments.append(assignment1)
+        
+        # Generate second assignment
+        prompt2 = random.choice([p for p in self.assignment_prompts if p != prompt1])
+        if len(concepts) >= 3:
+            assignment2 = f"{prompt2} the relationship between {concepts[0].lower()}, {concepts[1].lower()}, and {concepts[2].lower()}. How do these concepts interact and influence each other? Support your analysis with detailed explanations. (600-800 words)"
+        else:
+            assignment2 = f"{prompt2} the main arguments or points discussed in {main_subject.lower()}. What are the strengths and weaknesses of these arguments? Provide a well-reasoned analysis. (600-800 words)"
+        
+        assignments.append(assignment2)
+        
+        return assignments
+    
+    def generate_quiz_questions(self, text: str, topic: str = "") -> List[Dict]:
+        """Generate 3 multiple choice questions based on the text."""
+        concepts, sentences = self.extract_key_concepts(text)
+        quiz_questions = []
+        
+        # Prepare content for question generation
+        content_sentences = [s for s in sentences if len(s.split()) > 5][:10]
+        
+        for i in range(3):
+            question_data = self.create_mcq(concepts, content_sentences, topic, i)
+            quiz_questions.append(question_data)
+        
+        return quiz_questions
+    
+    def create_mcq(self, concepts: List[str], sentences: List[str], topic: str, question_num: int) -> Dict:
+        """Create a single multiple choice question."""
+        question_templates = [
+            {
+                "template": "What is the primary focus of {concept}?",
+                "correct": f"The main aspect discussed about {concept.lower()}",
+                "wrong": [
+                    f"A secondary characteristic of {concept.lower()}",
+                    f"An unrelated feature of {concept.lower()}",
+                    f"A misconception about {concept.lower()}"
+                ]
+            },
+            {
+                "template": "Which of the following best describes {concept}?",
+                "correct": f"A key characteristic or definition of {concept.lower()}",
+                "wrong": [
+                    f"An incorrect description of {concept.lower()}",
+                    f"A partial but incomplete view of {concept.lower()}",
+                    f"A common misunderstanding of {concept.lower()}"
+                ]
+            },
+            {
+                "template": "How does {concept} relate to the main topic?",
+                "correct": f"{concept} plays a significant role in the discussion",
+                "wrong": [
+                    f"{concept} is mentioned only briefly",
+                    f"{concept} is not directly related to the topic",
+                    f"{concept} contradicts the main arguments"
+                ]
+            }
+        ]
+        
+        # Select concept and template
+        concept = concepts[question_num % len(concepts)] if concepts else (topic or "the topic")
+        template = question_templates[question_num % len(question_templates)]
+        
+        # Generate question
+        question = template["template"].format(concept=concept)
+        
+        # Generate options
+        correct_answer = template["correct"].format(concept=concept)
+        wrong_answers = [opt.format(concept=concept) for opt in template["wrong"]]
+        
+        # Randomize answer positions
+        all_options = [correct_answer] + wrong_answers
+        random.shuffle(all_options)
+        correct_index = all_options.index(correct_answer)
+        
+        return {
+            "question": question,
+            "options": all_options,
+            "correct_answer": chr(65 + correct_index),  # A, B, C, or D
+            "explanation": f"This question tests understanding of {concept.lower()} as discussed in the provided content."
+        }
+
+def main():
+    st.set_page_config(
+        page_title="Assignment & Quiz Generator",
+        page_icon="📚",
+        layout="wide"
+    )
+    
+    st.title("📚 Assignment & Quiz Generator")
+    st.markdown("Generate assignments and quiz questions from any document or topic!")
+    
+    # Initialize generator
+    generator = AssignmentQuizGenerator()
+    
+    # Sidebar for input options
+    with st.sidebar:
+        st.header("Input Options")
+        input_method = st.radio(
+            "Choose input method:",
+            ["Text Input", "Topic Only"]
+        )
+    
+    # Main input area
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        if input_method == "Text Input":
+            st.subheader("📄 Document Text")
+            input_text = st.text_area(
+                "Paste your document or text here:",
+                height=200,
+                placeholder="Enter the text you want to generate questions from..."
+            )
+            topic = st.text_input(
+                "Optional: Specify main topic",
+                placeholder="e.g., Climate Change, World War II, Python Programming"
+            )
+        else:
+            st.subheader("🎯 Topic-Based Generation")
+            topic = st.text_input(
+                "Enter your topic:",
+                placeholder="e.g., Machine Learning, Renaissance Art, Photosynthesis"
+            )
+            input_text = f"This content focuses on {topic}. " * 10  # Minimal text for topic-based generation
+    
+    with col2:
+        st.subheader("⚙️ Generation Settings")
+        difficulty = st.select_slider(
+            "Question Difficulty:",
+            options=["Easy", "Medium", "Hard"],
+            value="Medium"
+        )
+        
+        generate_btn = st.button(
+            "🚀 Generate Questions",
+            type="primary",
+            use_container_width=True
+        )
+    
+    # Generate and display results
+    if generate_btn:
+        if not input_text.strip() and not topic.strip():
+            st.error("Please provide either text input or a topic!")
+            return
+        
+        with st.spinner("Generating assignments and quiz questions..."):
+            # Generate assignments
+            assignments = generator.generate_assignments(input_text, topic)
+            
+            # Generate quiz questions
+            quiz_questions = generator.generate_quiz_questions(input_text, topic)
+        
+        # Display results
+        st.success("Questions generated successfully! 🎉")
+        
+        # Assignments section
+        st.header("📝 Assignment Questions")
+        for i, assignment in enumerate(assignments, 1):
+            with st.expander(f"Assignment {i}", expanded=True):
+                st.markdown(f"**Question {i}:**")
+                st.write(assignment)
+                
+                # Copy button
+                if st.button(f"📋 Copy Assignment {i}", key=f"copy_assign_{i}"):
+                    st.write("Assignment copied to clipboard! (Feature would work in deployed version)")
+        
+        st.divider()
+        
+        # Quiz section
+        st.header("🧩 Multiple Choice Quiz")
+        
+        # Quiz instructions
+        with st.expander("📖 Quiz Instructions"):
+            st.markdown("""
+            - Each question has 4 options (A, B, C, D)
+            - Only one answer is correct
+            - Click 'Show Answer' to reveal the correct answer and explanation
+            """)
+        
+        for i, q in enumerate(quiz_questions, 1):
+            with st.expander(f"Question {i}", expanded=True):
+                st.markdown(f"**{i}. {q['question']}**")
+                
+                # Display options
+                for j, option in enumerate(q['options']):
+                    st.write(f"**{chr(65+j)}.** {option}")
+                
+                # Answer reveal
+                col_a, col_b = st.columns([1, 3])
+                with col_a:
+                    if st.button(f"Show Answer", key=f"answer_{i}"):
+                        st.success(f"Correct Answer: **{q['correct_answer']}**")
+                
+                with col_b:
+                    if st.button(f"Show Explanation", key=f"explain_{i}"):
+                        st.info(q['explanation'])
+        
+        # Export options
+        st.divider()
+        st.subheader("📤 Export Options")
+        
+        col_exp1, col_exp2 = st.columns(2)
+        
+        with col_exp1:
+            # Create downloadable content
+            assignment_text = "\n\n".join([f"Assignment {i+1}:\n{assignment}" 
+                                         for i, assignment in enumerate(assignments)])
+            
+            st.download_button(
+                label="📄 Download Assignments",
+                data=assignment_text,
+                file_name="assignments.txt",
+                mime="text/plain"
+            )
+        
+        with col_exp2:
+            quiz_text = "\n\n".join([
+                f"Question {i+1}: {q['question']}\n" + 
+                "\n".join([f"{chr(65+j)}. {opt}" for j, opt in enumerate(q['options'])]) + 
+                f"\n\nCorrect Answer: {q['correct_answer']}\nExplanation: {q['explanation']}"
+                for i, q in enumerate(quiz_questions)
+            ])
+            
+            st.download_button(
+                label="🧩 Download Quiz",
+                data=quiz_text,
+                file_name="quiz.txt",
+                mime="text/plain"
+            )
+    
+    # Footer
+    st.divider()
+    st.markdown("""
+    <div style='text-align: center; color: #666;'>
+        <p>🚀 Built with Streamlit | Generate assignments and quizzes from any content!</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
